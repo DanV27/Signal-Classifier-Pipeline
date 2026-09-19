@@ -1,9 +1,12 @@
+import tempfile
+
 from datasets import Dataset, load_dataset, Audio, load_from_disk
 import numpy as np
 import matplotlib.pyplot as plt
 import io
 import librosa
 import whisper
+import pprint as pp
 
 
 def run():
@@ -16,7 +19,7 @@ def run():
 
 def load():
     ds = load_from_disk("data/peoples_speech_sample")
-    sample = ds[50]
+    sample = ds[20]
 
 
     return sample
@@ -72,9 +75,41 @@ def mel_plot(audio):
 
 
 def transcribe(audio):
-    audio = load()
+    '''
+    this function uses Whisper to take in raw audio bytes
+     and outputs the transcription to the audio,
+      including each word and their timestamp!
+       and rn it compares the original text to the one
+        whisper made.
+
+    :param audio:
+    :return:
+    '''
+    model = whisper.load_model("base")
+    raw_bytes = audio['audio']['bytes']
+    with tempfile.NamedTemporaryFile(suffix=".mp3") as temp:
+        temp.write(raw_bytes)
+        temp.flush()
+        result = model.transcribe(temp.name, word_timestamps=True)
+
+
+
+
+
+    print('WHISPER RESULTS:')
+    print(result["text"])
+    #pp.pprint(result)
+    for segment in result["segments"]:
+        for words in segment["words"]:
+            print(f"{words['word']} time:{words['start']:.2f}s ->{words['end']:.2f}s")
+
+    print('--------------------------------------------------------------------------------')
+    print('ORIGINAL TEXT:')
+    print(audio["text"])
+
 
 
 if __name__ == "__main__":
     audio_sample = load()
+    transcribe(audio_sample)
 
