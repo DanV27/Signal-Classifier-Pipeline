@@ -1,0 +1,30 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "audio": {
+      "bytes": {
+        "dtype": "binary",
+        "_type": "Value"
+      },
+      "path": {
+        "dtype": "string",
+        "_type": "Value"
+      }
+    },
+    "duration_ms": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "text": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
