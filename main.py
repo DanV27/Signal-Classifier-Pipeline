@@ -7,6 +7,9 @@ import io
 import librosa
 import whisper
 import pprint as pp
+import re
+
+
 
 
 def run():
@@ -17,9 +20,9 @@ def run():
     small_ds = Dataset.from_list(list(small))
     small_ds.save_to_disk("data/peoples_speech_sample")
 
-def load():
+def load(row):
     ds = load_from_disk("data/peoples_speech_sample")
-    sample = ds[20]
+    sample = ds[row]
 
 
     return sample
@@ -74,7 +77,7 @@ def mel_plot(audio):
     plt.show()
 
 
-def transcribe(audio):
+def transcribe_time(audio):
     '''
     this function uses Whisper to take in raw audio bytes
      and outputs the transcription to the audio,
@@ -92,24 +95,56 @@ def transcribe(audio):
         temp.flush()
         result = model.transcribe(temp.name, word_timestamps=True)
 
-
-
-
-
-    print('WHISPER RESULTS:')
-    print(result["text"])
     #pp.pprint(result)
+    text_dict = {}
     for segment in result["segments"]:
         for words in segment["words"]:
-            print(f"{words['word']} time:{words['start']:.2f}s ->{words['end']:.2f}s")
+            word = words["word"]
+            word = word.strip()
+            word = word.lower()
+            word = re.sub(r"[^\w\s]","", word)
 
-    print('--------------------------------------------------------------------------------')
-    print('ORIGINAL TEXT:')
-    print(audio["text"])
+            # okay make value hold a list for mutiple time stamps if there are multiple instances of the word!
+            word_timestamp = f"{words['start']:.2f}s ->{words['end']:.2f}s"
+            time_list = [word_timestamp] #incase there are multiple word instances in audio
+
+            if word in text_dict:
+                text_dict[word].append(word_timestamp)
+            else:
+                text_dict[word] = time_list
+
+    pp.pprint(text_dict)
+    return text_dict
 
 
+def get_word(search_word, audio):
+    '''
+    takes a search_word and audio file, transcribes in the
+     function and returns whether or not that word is in the audio.
+      if theres multiple instances of that word in the audio,
+       it'll give them as well.
+    :param search_word:
+    :param audio:
+    :return:
+    '''
+
+    search_word = search_word.lower()
+    search_word = search_word.strip()
+    search_word = re.sub(r"[^\w\s]", "", search_word)
+
+    text_dict = transcribe_time(audio_sample)
+
+
+    if search_word in text_dict:
+        if len(text_dict[search_word]) > 0:
+            print(f"The word '{search_word}' is in the audio at these times: {text_dict[search_word]}")
+    else:
+        print(f"{search_word} is not in this audio!")
 
 if __name__ == "__main__":
-    audio_sample = load()
-    transcribe(audio_sample)
+    for i in range(0,5):
+        audio_sample = load(i)
+        print("-----------------------------------------------")
+        print(f"Audio number: {i}")
+        get_word("I'm", audio_sample)
 
