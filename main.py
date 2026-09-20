@@ -93,7 +93,7 @@ def transcribe_time(audio):
     with tempfile.NamedTemporaryFile(suffix=".mp3") as temp:
         temp.write(raw_bytes)
         temp.flush()
-        result = model.transcribe(temp.name, word_timestamps=True)
+        result = model.transcribe(temp.name, word_timestamps=True, fp16=False) #fp16 is because i dont got gpu, so it suppresses a warning
 
     #pp.pprint(result)
     text_dict = {}
@@ -113,7 +113,7 @@ def transcribe_time(audio):
             else:
                 text_dict[word] = time_list
 
-    pp.pprint(text_dict)
+    #pp.pprint(text_dict)
     return text_dict
 
 
@@ -141,10 +141,12 @@ def get_word(search_word, audio):
     else:
         print(f"{search_word} is not in this audio!")
 
+
+
 if __name__ == "__main__":
-    for i in range(0,5):
+    for i in range(0,200):
         audio_sample = load(i)
         print("-----------------------------------------------")
         print(f"Audio number: {i}")
-        get_word("I'm", audio_sample)
+        get_word("about", audio_sample)
 
