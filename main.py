@@ -4,13 +4,13 @@ from datasets import Dataset, load_dataset, Audio, load_from_disk
 import numpy as np
 import matplotlib.pyplot as plt
 import io
-import librosa
+import librosa, librosa.display
 import whisper
 import pprint as pp
 import re
 
 
-
+SR = 16000  # whisper.load_audio always returns 16 kHz mono
 
 def run():
     ds = load_dataset("MLCommons/peoples_speech", "clean", split="train", streaming=True)
@@ -23,54 +23,34 @@ def run():
 def load(row):
     ds = load_from_disk("data/peoples_speech_sample")
     sample = ds[row]
-
+    print(sample)
 
     return sample
+def decode(audio):
+    with tempfile.NamedTemporaryFile(suffix=".mp3") as temp:
+        temp.write(audio['audio']['bytes'])
+        temp.flush()
+        return whisper.load_audio(temp.name)  # float32 array, 16 kHz
 
-def graph_plot(audio):
-    raw_bytes = audio['audio']['bytes']
+def graph_plot(y, sr=SR):
+    t = np.arange(len(y)) / sr  # sample index -> seconds
 
-    # 1. Truncate trailing bytes if the buffer isn't a multiple of 4 bytes
-    remainder = len(raw_bytes) % 4
-    if remainder != 0:
-        raw_bytes = raw_bytes[:-remainder]
-
-    # 2. Convert bytes to int32 numpy array
-    audio_data = np.frombuffer(raw_bytes, dtype=np.int32).copy()
-
-    # 3. Optional: Normalize to a -1.0 to 1.0 float range
-    # 32-bit signed ints have a max magnitude of 2**31
-    audio_data_normalized = audio_data.astype(np.float32) / (2 ** 31)
-
-    # Plot the usable waveform
     plt.figure(figsize=(10, 4))
-    plt.plot(audio_data_normalized, linewidth=0.1, )
-    plt.title("Audio Waveform Sample")
-    plt.xlabel("Time(s)")
+    plt.plot(t, y)
+    plt.title("Audio Waveform")
+    plt.xlabel("Time (s)")
     plt.ylabel("Amplitude")
     plt.grid(True)
     plt.show()
 
 
-def mel_plot(audio):
-    raw_bytes = audio['audio']['bytes']
+def mel_plot(y, sr=SR):
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_fft=512, hop_length=128)
+    mel_db = librosa.power_to_db(S, ref=np.max)
 
-
-    # Wrap your byte string in BytesIO
-    file_like_object = io.BytesIO(raw_bytes)
-
-    # Load into an audio waveform array
-    y, sr = librosa.load(file_like_object, sr=None)
-
-    # Compute and plot your Mel spectrogram normally
-    S = librosa.feature.melspectrogram(y=y, sr=sr)
-
-    mel_spect_db = librosa.power_to_db(S, ref=np.max)
-
-    # 4. Plot the result
     plt.figure(figsize=(10, 4))
-    librosa.display.specshow(mel_spect_db, sr=sr, x_axis='time', y_axis='mel', fmax=sr / 2, cmap='viridis')
-
+    librosa.display.specshow(mel_db, sr=sr, hop_length=128,
+                             x_axis='time', y_axis='mel', fmax=sr / 2, cmap='viridis')
     plt.colorbar(format='%+2.0f dB')
     plt.title('Mel Spectrogram')
     plt.tight_layout()
@@ -121,7 +101,7 @@ def get_word(search_word, audio):
     '''
     takes a search_word and audio file, transcribes in the
      function and returns whether or not that word is in the audio.
-      if theres multiple instances of that word in the audio,
+      if there's multiple instances of that word in the audio,
        it'll give them as well.
     :param search_word:
     :param audio:
@@ -132,7 +112,7 @@ def get_word(search_word, audio):
     search_word = search_word.strip()
     search_word = re.sub(r"[^\w\s]", "", search_word)
 
-    text_dict = transcribe_time(audio_sample)
+    text_dict = transcribe_time(audio)
 
 
     if search_word in text_dict:
@@ -141,12 +121,37 @@ def get_word(search_word, audio):
     else:
         print(f"{search_word} is not in this audio!")
 
+    return text_dict.get(search_word,[])
 
+def get_slice(audio, word_timestamps, pad=0.1):
+    '''
+    takes audio and word_timestamps from get_word,
+     and returns a mel_plot of when that word was said!
+
+    :param audio:
+    :param word_timestamps:
+    :param pad:
+    :return: clip
+    '''
+    y = decode(audio)
+    start, end = [float(x) for x in re.findall(r'\d+\.\d+', word_timestamps[0])]
+
+    s = max(0, int((start - pad) * SR))
+    e = min(len(y), int((end + pad) * SR))
+    clip = y[s:e]
+
+    mel_plot(clip)
+    return clip
 
 if __name__ == "__main__":
-    for i in range(0,200):
-        audio_sample = load(i)
-        print("-----------------------------------------------")
-        print(f"Audio number: {i}")
-        get_word("about", audio_sample)
+    audio_sample = load(20)
+    word_timestamps = get_word('hawaii', audio_sample)
+
+    if word_timestamps:
+        clip = get_slice(audio_sample, word_timestamps)
+        graph_plot(clip)                 # waveform of just the word
+        # graph_plot(decode(audio_sample))  # or the full audio
+
+
+
 
