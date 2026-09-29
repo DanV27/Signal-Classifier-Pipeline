@@ -32,16 +32,20 @@ model.fc = nn.Linear(model.fc.in_features, num_classes)
 # Load the dataset from folder
 batch_size = 32
 dataset = datasets.ImageFolder(root='data/spectrograms/', transform=transform)
+
+train_set, test_set = torch.utils.data.random_split(dataset, [.8,.2])
 # 1. Instantiate the DataLoader with your dataset and parameters
 train_loader = DataLoader(
-    dataset=dataset,  # Replace with your actual dataset object
+    dataset=train_set,  # Replace with your actual dataset object
     batch_size=32,         # Set your desired batch size
     shuffle=True           # Shuffle data every epoch
 )
+test_loader = DataLoader(
+    dataset=test_set,  # Replace with your actual dataset object
+    batch_size=32         # Set your desired batch size
+)
 
-# Access classes and sample targets
-print(dataset.classes)  # List of class folder names
-print(dataset.class_to_idx)  # Mapping of class to index integer
+
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 model.train()
@@ -57,3 +61,16 @@ for epoch in range(5):
         optimizer.step()
     total_loss /= len(train_loader)
     print(epoch,total_loss)
+
+model.eval()
+correct = 0
+total = 0
+for batch_idx, (data, targets) in enumerate(test_loader):
+    output = model(data)
+    correct += (torch.argmax(output, dim=1) == targets).sum().item()
+    total += targets.size(0)
+
+# Calculate accuracy percentage
+batch_accuracy = correct / total
+print(batch_accuracy)
+
