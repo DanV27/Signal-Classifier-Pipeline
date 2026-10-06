@@ -4,6 +4,7 @@ import torch.nn as nn
 from torchvision import models, transforms, datasets
 import torch
 from torch.utils.data import DataLoader
+from sklearn.metrics import confusion_matrix
 
 # Define image preprocessing (ResNet standard requirements)
 transform = transforms.Compose([
@@ -60,12 +61,34 @@ for epoch in range(5): #epoch = one full pas through all training images
 model.eval() #evaluation mode
 correct = 0
 total = 0
+all_predictions = []
+all_targets = []
 with torch.no_grad(): #cause it'll still be recording every calculation
     for batch_idx, (data, targets) in enumerate(test_loader):
         output = model(data)
         correct += (torch.argmax(output, dim=1) == targets).sum().item()
         total += targets.size(0)
+        all_predictions.extend(output.argmax(1).tolist())
+        all_targets.extend(targets.tolist())
 
 # Calculate accuracy percentage
-batch_accuracy = correct / total
-print(batch_accuracy)
+accuracy = correct / total
+print(accuracy)
+print(confusion_matrix(all_targets, all_predictions))
+
+'''
+right now confusion matrix is giving [0 4]
+                                     [0 54]
+The model never said "about"
+it just kept guessing not and got it right since there is so many more exmples than not.
+The falling loss score just meant it learned the pattern to always say not about
+I have 60 test images and 4 are about,
+    this is a huge imbalance
+    
+What to fix:
+1. Way more "about" clips
+2. class weights, so missing an "about" cost more.
+3.Judge by "about" caught out of total "about". (recall not accuracy)
+'''
+
+
