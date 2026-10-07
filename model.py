@@ -41,7 +41,10 @@ test_loader = DataLoader(
 )
 #the grader takes the 2 logits and converts them to percentages that
 #add up to 100%, then checks how much went to the correct answer.
-criterion = nn.CrossEntropyLoss()
+#Criterion is now not hardcoded, wights are determined on ratio on about vs not about files
+counts = torch.bincount(torch.tensor(dataset.targets))
+class_weights = counts.max() / counts   # ≈ [4.6, 1.0] for you
+criterion = nn.CrossEntropyLoss(weight=class_weights)
 #lr=learning rate, Too big and it overshoots, too small and it takes forever.
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 model.train() #training mode
@@ -76,19 +79,5 @@ accuracy = correct / total
 print(accuracy)
 print(confusion_matrix(all_targets, all_predictions))
 
-'''
-right now confusion matrix is giving [0 4]
-                                     [0 54]
-The model never said "about"
-it just kept guessing not and got it right since there is so many more exmples than not.
-The falling loss score just meant it learned the pattern to always say not about
-I have 60 test images and 4 are about,
-    this is a huge imbalance
-    
-What to fix:
-1. Way more "about" clips
-2. class weights, so missing an "about" cost more.
-3.Judge by "about" caught out of total "about". (recall not accuracy)
-'''
-
-
+#115 about files
+#532 not about files
