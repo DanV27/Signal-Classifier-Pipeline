@@ -20,7 +20,7 @@ _cache = None
 def run():
     ds = load_dataset("MLCommons/peoples_speech", "clean", split="train", streaming=True)
     ds = ds.cast_column("audio", Audio(decode=False))
-    small = ds.take(800)
+    small = ds.take(2000)
 
     small_ds = Dataset.from_list(list(small))
     small_ds.save_to_disk("data/peoples_speech_sample")
@@ -178,7 +178,7 @@ def get_slice(audio, word_timestamps, pad=0.1, y=None):
     return y[s:e]
 
 
-def save_mel(search_word, range_count, out_dir="data/spectrograms/not_about"):
+def save_mel(search_word, range_count, out_dir="data/spectrograms/about"):
     '''
     runs through range_count files and saves a mel spectrogram for
     every time search_word is said.
@@ -217,17 +217,20 @@ def save_mel(search_word, range_count, out_dir="data/spectrograms/not_about"):
 
 if __name__ == "__main__":
 
-    #for w in []:
-        #save_mel(w, 800)
+    #run()
+
+    #for w in ['about']:
+        #save_mel(w, 2000)
 
 
 
-    APP_DIR = "data/spectrograms/not_about"
+    APP_DIR = "data/spectrograms/about"
 
     # Counts ONLY files, ignoring subfolders
     file_count = sum(1 for entry in os.scandir(APP_DIR) if entry.is_file())
 
     print(f"Total files: {file_count}")
+
 
 
 
