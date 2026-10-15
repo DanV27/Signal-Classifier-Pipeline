@@ -80,7 +80,9 @@ criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)  # low lr protects pretrained layer4
 
 # --- Train with early stopping ---
-num_epochs = 10
+num_epochs = 20
+patience = 5
+epochs_without_improvement = 0
 best_loss = float("inf")
 
 for epoch in range(num_epochs):
@@ -110,8 +112,14 @@ for epoch in range(num_epochs):
     # Keep only the epoch with the lowest test loss (before memorizing kicks in)
     if val_loss < best_loss:
         best_loss = val_loss
+        epochs_without_improvement = 0
         torch.save(model.state_dict(), "best_model.pt")
         print("  saved best model")
+    else:
+        epochs_without_improvement += 1
+        if epochs_without_improvement >= patience:
+            print(f"  no improvement in {patience} epochs, stopping")
+            break
 
 # --- Final evaluation on the BEST model, not the last epoch ---
 model.load_state_dict(torch.load("best_model.pt", map_location=device))
