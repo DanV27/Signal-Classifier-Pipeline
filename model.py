@@ -6,6 +6,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import models, transforms, datasets
 from sklearn.metrics import confusion_matrix, classification_report
+import torchaudio.transforms as T
+from torch.utils.data import Subset
 
 # --- Device ---
 if torch.cuda.is_available():
@@ -23,19 +25,38 @@ transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+
 ])
 
+train_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    T.FrequencyMasking(freq_mask_param=30),  # blank up to 30 rows (frequencies)
+    T.TimeMasking(time_mask_param=40),       # blank up to 40 columns (time)
+])
+eval_transform = transform  # your existing clean one
+
+train_data = datasets.ImageFolder("data/spectrograms/", transform=train_transform)
+eval_data = datasets.ImageFolder("data/spectrograms/", transform=eval_transform)
 # --- Data ---
 # Folder names become the labels, sorted alphabetically (about/ = 0)
 batch_size = 32
-dataset = datasets.ImageFolder(root="data/spectrograms/", transform=transform)
+
 
 # Fixed seed so every run is graded on the same test clips
-train_set, test_set = torch.utils.data.random_split(
-    dataset, [0.8, 0.2], generator=torch.Generator().manual_seed(42)
+# Split indices once, same seed, so no clip lands in two sets
+train_idx, val_idx, test_idx = torch.utils.data.random_split(
+    range(len(train_data)), [0.7, 0.15, 0.15], generator=torch.Generator().manual_seed(42)
 )
+train_set = Subset(train_data, train_idx.indices)  # augmented
+val_set = Subset(eval_data, val_idx.indices)       # clean
+test_set = Subset(eval_data, test_idx.indices)     # clean
+
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(val_set, batch_size=batch_size)
 test_loader = DataLoader(test_set, batch_size=batch_size)
+
 
 # --- Model ---
 model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
@@ -53,7 +74,7 @@ model = model.to(device)
 
 # --- Loss + optimizer ---
 # Class weights from the real file counts, so missing a rarer "about" costs more
-counts = torch.bincount(torch.tensor(dataset.targets))
+counts = torch.bincount(torch.tensor(train_data.targets))
 class_weights = counts.max() / counts  # ~[1.8, 1.0] with 293 about / 532 not_about
 criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)  # low lr protects pretrained layer4
@@ -77,18 +98,18 @@ for epoch in range(num_epochs):
 
     # Test loss (no learning happens here)
     model.eval()
-    test_loss = 0.0
+    val_loss = 0.0
     with torch.no_grad():
-        for data, targets in test_loader:
+        for data, targets in val_loader:
             data, targets = data.to(device), targets.to(device)
-            test_loss += criterion(model(data), targets).item()
-    test_loss /= len(test_loader)
+            val_loss += criterion(model(data), targets).item()
+    val_loss /= len(val_loader)
 
-    print(f"Epoch {epoch}: train {train_loss:.4f} | test {test_loss:.4f}")
+    print(f"Epoch {epoch}: train {train_loss:.4f} | val {val_loss:.4f}")
 
     # Keep only the epoch with the lowest test loss (before memorizing kicks in)
-    if test_loss < best_loss:
-        best_loss = test_loss
+    if val_loss < best_loss:
+        best_loss = val_loss
         torch.save(model.state_dict(), "best_model.pt")
         print("  saved best model")
 
@@ -106,6 +127,7 @@ with torch.no_grad():
         all_targets.extend(targets.tolist())
 
 print(confusion_matrix(all_targets, all_predictions))
-print(classification_report(all_targets, all_predictions, target_names=dataset.classes))
+print(classification_report(all_targets, all_predictions, target_names=train_data.classes))
 #293 about files
 #532 not about files
+
